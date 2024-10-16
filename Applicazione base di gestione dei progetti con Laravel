@@ -1,0 +1,200 @@
+// app/Models/Project.php
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+
+class Project extends Model
+{
+    use HasFactory;
+
+    protected $fillable = ['name', 'description', 'status'];
+
+    public function tasks()
+    {
+        return $this->hasMany(Task::class);
+    }
+}
+
+// app/Models/Task.php
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+
+class Task extends Model
+{
+    use HasFactory;
+
+    protected $fillable = ['name', 'description', 'status', 'project_id'];
+
+    public function project()
+    {
+        return $this->belongsTo(Project::class);
+    }
+}
+
+// database/migrations/xxxx_xx_xx_create_projects_table.php
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+class CreateProjectsTable extends Migration
+{
+    public function up()
+    {
+        Schema::create('projects', function (Blueprint $table) {
+            $table->id();
+            $table->string('name');
+            $table->text('description');
+            $table->enum('status', ['active', 'completed', 'on_hold']);
+            $table->timestamps();
+        });
+    }
+
+    public function down()
+    {
+        Schema::dropIfExists('projects');
+    }
+}
+
+// database/migrations/xxxx_xx_xx_create_tasks_table.php
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+class CreateTasksTable extends Migration
+{
+    public function up()
+    {
+        Schema::create('tasks', function (Blueprint $table) {
+            $table->id();
+            $table->string('name');
+            $table->text('description');
+            $table->enum('status', ['todo', 'in_progress', 'done']);
+            $table->foreignId('project_id')->constrained()->onDelete('cascade');
+            $table->timestamps();
+        });
+    }
+
+    public function down()
+    {
+        Schema::dropIfExists('tasks');
+    }
+}
+
+// app/Http/Controllers/ProjectController.php
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Models\Project;
+use Illuminate\Http\Request;
+
+class ProjectController extends Controller
+{
+    public function index()
+    {
+        $projects = Project::all();
+        return view('projects.index', compact('projects'));
+    }
+
+    public function create()
+    {
+        return view('projects.create');
+    }
+
+    public function store(Request $request)
+    {
+        $validatedData = $request->validate([
+            'name' => 'required|max:255',
+            'description' => 'required',
+            'status' => 'required|in:active,completed,on_hold',
+        ]);
+
+        Project::create($validatedData);
+
+        return redirect()->route('projects.index')->with('success', 'Progetto creato con successo.');
+    }
+
+    public function show(Project $project)
+    {
+        return view('projects.show', compact('project'));
+    }
+
+    public function edit(Project $project)
+    {
+        return view('projects.edit', compact('project'));
+    }
+
+    public function update(Request $request, Project $project)
+    {
+        $validatedData = $request->validate([
+            'name' => 'required|max:255',
+            'description' => 'required',
+            'status' => 'required|in:active,completed,on_hold',
+        ]);
+
+        $project->update($validatedData);
+
+        return redirect()->route('projects.index')->with('success', 'Progetto aggiornato con successo.');
+    }
+
+    public function destroy(Project $project)
+    {
+        $project->delete();
+
+        return redirect()->route('projects.index')->with('success', 'Progetto eliminato con successo.');
+    }
+}
+
+// resources/views/projects/index.blade.php
+@extends('layouts.app')
+
+@section('content')
+    <h1>Progetti</h1>
+    <a href="{{ route('projects.create') }}" class="btn btn-primary">Crea nuovo progetto</a>
+   
+    <table class="table mt-3">
+        <thead>
+            <tr>
+                <th>Nome</th>
+                <th>Stato</th>
+                <th>Azioni</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach($projects as $project)
+                <tr>
+                    <td>{{ $project->name }}</td>
+                    <td>{{ $project->status }}</td>
+                    <td>
+                        <a href="{{ route('projects.show', $project) }}" class="btn btn-sm btn-info">Visualizza</a>
+                        <a href="{{ route('projects.edit', $project) }}" class="btn btn-sm btn-warning">Modifica</a>
+                        <form action="{{ route('projects.destroy', $project) }}" method="POST" class="d-inline">
+                            @csrf
+                            @method('DELETE')
+                            <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Sei sicuro di voler eliminare questo progetto?')">Elimina</button>
+                        </form>
+                    </td>
+                </tr>
+            @endforeach
+        </tbody>
+    </table>
+@endsection
+
+// routes/web.php
+<?php
+
+use App\Http\Controllers\ProjectController;
+use Illuminate\Support\Facades\Route;
+
+Route::resource('projects', ProjectController::class);
